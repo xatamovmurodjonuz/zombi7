@@ -1,0 +1,247 @@
+<script>
+// === ELEMENTLAR ===
+const zone = document.getElementById("zone");
+const player = document.getElementById("player");
+const hpEl = document.getElementById("hp");
+const xpEl = document.getElementById("xp");
+const coinEl = document.getElementById("coins");
+const levelEl = document.getElementById("level");
+const killsEl = document.getElementById("kills");
+const nicknameEl = document.getElementById("nickname");
+const hpBar = document.getElementById("hp-bar");
+const gameOver = document.getElementById("game-over");
+
+// === OZGARUVCHILAR ===
+let playerPos = { top: 200, left: 200 };
+let hp = 100, xp = 0, coins = 0, kills = 0, level = 1;
+let zombies = [];
+let zombieInterval = null;
+let spawnInterval = null;
+
+// === OYIN HARAKATLARI ===
+function updateStats() {
+  hpEl.textContent = hp;
+  xpEl.textContent = xp;
+  coinEl.textContent = coins;
+  killsEl.textContent = kills;
+  levelEl.textContent = level;
+  hpBar.style.width = hp + "%";
+
+  if (xp >= level * 100) {
+    xp -= level * 100;
+    level++;
+  }
+}
+
+function move(direction) {
+  const step = 30;
+  if (direction === 'left') playerPos.left -= step;
+  if (direction === 'right') playerPos.left += step;
+  if (direction === 'up') playerPos.top -= step;
+  if (direction === 'down') playerPos.top += step;
+  player.style.top = playerPos.top + 'px';
+  player.style.left = playerPos.left + 'px';
+}
+
+function attack() {
+  zombies.forEach((zombie, index) => {
+    const dx = Math.abs(playerPos.left - zombie.pos.left);
+    const dy = Math.abs(playerPos.top - zombie.pos.top);
+    if (dx < 50 && dy < 50) {
+      zone.removeChild(zombie.el);
+      zombies.splice(index, 1);
+      xp += 30;
+      coins += 50;
+      kills++;
+      updateStats();
+    }
+  });
+}
+
+function useHeal() {
+  if (coins >= 50 && hp < 100) {
+    hp += 30;
+    if (hp > 100) hp = 100;
+    coins -= 50;
+    updateStats();
+  } else {
+    alert("💊 Dori uchun yetarli coin yo‘q yoki HP to‘liq.");
+  }
+}
+
+function bonusXP() {
+  if (coins >= 100) {
+    xp += 100;
+    coins -= 100;
+    updateStats();
+  } else {
+    alert("✨ Bonus XP uchun coin yetarli emas.");
+  }
+}
+
+function freezeZombies() {
+  alert("🧊 Zombilar 3 soniyaga to‘xtadi!");
+  clearInterval(zombieInterval);
+  setTimeout(() => {
+    zombieInterval = setInterval(moveZombies, 1000);
+  }, 3000);
+}
+
+function spawnZombie() {
+  const zombieEl = document.createElement("div");
+  zombieEl.classList.add("zombie");
+  const pos = {
+    top: Math.floor(Math.random() * 600),
+    left: Math.floor(Math.random() * 800)
+  };
+  zombieEl.style.top = pos.top + 'px';
+  zombieEl.style.left = pos.left + 'px';
+  zone.appendChild(zombieEl);
+  zombies.push({ el: zombieEl, pos });
+}
+
+function moveZombies() {
+  zombies.forEach(zombie => {
+    const step = 10;
+    if (playerPos.top > zombie.pos.top) zombie.pos.top += step;
+    else if (playerPos.top < zombie.pos.top) zombie.pos.top -= step;
+
+    if (playerPos.left > zombie.pos.left) zombie.pos.left += step;
+    else if (playerPos.left < zombie.pos.left) zombie.pos.left -= step;
+
+    zombie.el.style.top = zombie.pos.top + 'px';
+    zombie.el.style.left = zombie.pos.left + 'px';
+
+    const dx = Math.abs(playerPos.left - zombie.pos.left);
+    const dy = Math.abs(playerPos.top - zombie.pos.top);
+    if (dx < 30 && dy < 30) {
+      hp -= 10;
+      updateStats();
+      if (hp <= 0) {
+        hp = 0;
+        updateStats();
+        gameOver.style.display = "block";
+        clearInterval(zombieInterval);
+        clearInterval(spawnInterval);
+      }
+    }
+  });
+}
+
+function upgrade(type) {
+  if (coins < 200) {
+    alert("💰 Yetarli coin yo‘q!");
+    return;
+  }
+  coins -= 200;
+
+  if (type === "speed") {
+    alert("⚡️ Tezlik oshirildi!");
+  } else if (type === "attack") {
+    alert("⚔️ Hujum kuchi oshdi!");
+  } else if (type === "hp") {
+    hp += 20;
+    if (hp > 100) hp = 100;
+  }
+
+  updateStats();
+}
+
+function buy(type) {
+  if (coins < 100) {
+    alert("💸 Yetarli coin yo‘q!");
+    return;
+  }
+
+  coins -= 100;
+
+  if (type === "weapon") {
+    alert("🗡 Yangi qurol sotib oldingiz!");
+  } else if (type === "shield") {
+    alert("🛡 Himoya kuchaytirildi!");
+  } else if (type === "heal") {
+    useHeal();
+  } else if (type === "speed") {
+    alert("👟 Tezlik oshdi!");
+  }
+
+  updateStats();
+}
+
+function toggleProfile() {
+  const profile = document.getElementById("profile");
+  profile.style.display = (profile.style.display === "block") ? "none" : "block";
+}
+
+function saveProfile() {
+  const input = document.getElementById("nickname-input");
+  nicknameEl.textContent = input.value || "Anon";
+  toggleProfile();
+}
+
+function saveGame() {
+  localStorage.setItem("zombiGame", JSON.stringify({
+    hp, xp, coins, kills, level, nickname: nicknameEl.textContent
+  }));
+}
+
+function loadGame() {
+  const data = JSON.parse(localStorage.getItem("zombiGame"));
+  if (data) {
+    hp = data.hp;
+    xp = data.xp;
+    coins = data.coins;
+    kills = data.kills;
+    level = data.level;
+    nicknameEl.textContent = data.nickname;
+    updateStats();
+  }
+}
+
+function spawnLootbox() {
+  const box = document.createElement("div");
+  box.classList.add("lootbox");
+  const pos = {
+    top: Math.floor(Math.random() * 600),
+    left: Math.floor(Math.random() * 800)
+  };
+  box.style.top = pos.top + "px";
+  box.style.left = pos.left + "px";
+  box.onclick = () => {
+    coins += 100;
+    zone.removeChild(box);
+    updateStats();
+    alert("🎁 Lootboxdan 100 coin oldingiz!");
+  };
+  zone.appendChild(box);
+}
+
+function zombieMagnet() {
+  alert("🧲 Barcha zombilar sizga yaqinlashmoqda!");
+  zombies.forEach(z => {
+    z.pos.left = playerPos.left + Math.random() * 50;
+    z.pos.top = playerPos.top + Math.random() * 50;
+    z.el.style.left = z.pos.left + "px";
+    z.el.style.top = z.pos.top + "px";
+  });
+}
+
+function showIntro() {
+  if (!localStorage.getItem("firstVisit")) {
+    alert(`👋 Assalomu alaykum!\nBu o‘yinda siz mahallani zombi hujumidan himoya qilasiz.\n- Har 2 daqiqada yangi turdagi zombi chiqadi.\n- Zombilarni o‘ldiring, tajriba oling, do‘konlardan xarid qiling.\nYaxshi o‘yin!`);
+    localStorage.setItem("firstVisit", "1");
+  }
+}
+
+// === SAHIFA YUKLANGANDA ===
+window.onload = function () {
+  loadGame();
+  updateStats();
+  zombieInterval = setInterval(moveZombies, 1000);
+  spawnInterval = setInterval(spawnZombie, 3000);
+  setInterval(spawnLootbox, 10000);
+  showIntro();
+};
+
+window.onbeforeunload = saveGame;
+</script>
